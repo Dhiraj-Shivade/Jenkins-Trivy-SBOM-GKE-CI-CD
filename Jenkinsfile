@@ -55,7 +55,6 @@ pipeline {
     stage('Trivy SBOM Scan') {
       steps {
         sh '''
-          # Scan + generate vulnerability report table
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy:latest image \
@@ -63,7 +62,6 @@ pipeline {
             --format table \
             ${IMAGE}:$BUILD_NUMBER | tee trivy-report.txt
 
-          # Generate CycloneDX SBOM
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v $WORKSPACE:/result \
@@ -91,52 +89,49 @@ pipeline {
     }
 
     stage('Deploy to GKE') {
-  steps {
-    withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'SA_KEY_FILE')]) {
-      sh '''
-        echo "🔹 Installing kubectl and GKE Auth Plugin if missing..."
+      steps {
+        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'SA_KEY_FILE')]) {
+          sh '''
+            echo "🔹 Installing kubectl & GKE Plugin if missing..."
 
-        if ! command -v kubectl >/dev/null 2>&1; then
-          sudo apt-get update
-          sudo apt-get install -y kubectl
-        fi
+            if ! command -v kubectl >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y kubectl || true
+            fi
 
-        if ! command -v gke-gcloud-auth-plugin >/dev/null 2>&1; then
-          sudo apt-get install -y google-cloud-sdk-gke-gcloud-auth-plugin
-        fi
+            if ! command -v gke-gcloud-auth-plugin >/dev/null 2>&1; then
+              sudo apt-get install -y google-cloud-sdk-gke-gcloud-auth-plugin || true
+            fi
 
-        gcloud auth activate-service-account --key-file=$SA_KEY_FILE
-        gcloud config set project ${PROJECT_ID}
+            gcloud auth activate-service-account --key-file=$SA_KEY_FILE
+            gcloud config set project ${PROJECT_ID}
 
-        # Authenticate to GKE
-        gcloud container clusters get-credentials ${CLUSTER} \
-          --region ${REGION} \
-          --project ${PROJECT_ID}
+            gcloud container clusters get-credentials ${CLUSTER} \
+              --region ${REGION} \
+              --project ${PROJECT_ID}
 
-        echo "✅ kubectl & auth plugin ready"
+            echo "✅ kubectl & auth plugin ready"
+            kubectl version --client || true
+            kubectl get nodes
 
-        kubectl get nodes
+            kubectl apply -f k8s/service-clusterip.yaml
 
-        # Create service before deployment update
-        kubectl apply -f k8s/service-clusterip.yaml
+            kubectl set image deployment/python-app-deploy \
+              python-app-container=${IMAGE}:${BUILD_NUMBER} --record
 
-        # Update deployment to latest pushed image
-        kubectl set image deployment/python-app-deploy \
-          python-app-container=${IMAGE}:${BUILD_NUMBER} --record
-
-        kubectl rollout status deployment/python-app-deploy --timeout=180s
-      '''
-    }
-  }
-}
-
+            kubectl rollout status deployment/python-app-deploy --timeout=180s
+          '''
+        }
+      }
+    } // ✅ Closed correctly
+  } // ✅ Correct closing of stages
 
   post {
     failure {
-      echo "❌ Pipeline failed! Check logs & downloaded Trivy SBOM artifacts."
+      echo "❌ Pipeline failed! Check logs & the Trivy reports."
     }
     success {
-      echo "✅ Deployment Successful! Image: ${IMAGE}:$BUILD_NUMBER"
+      echo "✅ Successfully Deployed! Image: ${IMAGE}:$BUILD_NUMBER"
     }
   }
 }
