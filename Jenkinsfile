@@ -29,12 +29,12 @@ pipeline {
                 sh """
                 trivy image --exit-code 0 --format table ${IMAGE_NAME} > trivy-report.txt
                 trivy image --exit-code 1 ${IMAGE_NAME} || true
-                trivy image --scanners vuln,secret --format cyclonedx --output sbom.bom ${IMAGE_NAME}
+                trivy image --scanners vuln,secret --format cyclonedx --output sbom.json ${IMAGE_NAME}
                 """
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'trivy-report.txt, sbom.bom', fingerprint: true
+                    archiveArtifacts artifacts: 'trivy-report.txt, sbom.json', fingerprint: true
                 }
             }
         }
