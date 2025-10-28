@@ -19,4 +19,4 @@ spec:
         image: asia-south1-docker.pkg.dev/clear-booking-470907-q6/python-app-repo/python-app:latest
         ports:
         - containerPort: 5000
-      imagePullPolicy: Always
+        imagePullPolicy: Always
