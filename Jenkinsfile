@@ -1,8 +1,8 @@
 pipeline {
   agent {
-    docker {
-      image 'gcr.io/google.com/cloudsdktool/cloud-sdk:latest'
-      args '-v /var/run/docker.sock:/var/run/docker.sock'
+    node {
+      label 'slave'
+      customWorkspace '/home/dhiraj_shivade1/python-app'
     }
   }
 
@@ -12,34 +12,40 @@ pipeline {
     REPO_NAME = "python-app-repo"
     IMAGE = "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/python-app"
     CLUSTER = "cluster-ci"
-    ZONE = "asia-south1-a"
-    GCP_SA_KEY = credentials('gke-sa-key')  // secret text or file
+    // GKE Regional clusters use region, not zone.
+    // If you need a specific zone for node operations, you can declare it separately.
+    GCP_SA_KEY = credentials('gke-sa-key')  // secret file
   }
 
   stages {
     stage('Checkout') {
       steps {
-        git branch: 'main', url: ''
+        git branch: 'main', url: 'https://github.com/Dhiraj-Shivade/Jenkins-Trivy-SBOM-GKE-CI-CD.git'
       }
     }
 
     stage('Auth to GCP') {
       steps {
-        sh '''
-          echo "$GCP_SA_KEY" > sa.json
-          gcloud auth activate-service-account --key-file=sa.json
-          gcloud config set project ${PROJECT_ID}
-          gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
-        '''
+        // Use withCredentials to handle the service account key securely
+        withCredentials([file(credentialsId: 'gke-sa-key', variable: 'SA_KEY_FILE')]) {
+          sh '''
+            gcloud auth activate-service-account --key-file=$SA_KEY_FILE
+            gcloud config set project ${PROJECT_ID}
+            gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
+          '''
+        }
       }
     }
 
     stage('Install Docker CLI (if needed)') {
       steps {
+        // This is not needed if your slave VM has Docker pre-installed.
+        // It's not recommended for production.
+        // The `docker.io` package name is for apt-based systems.
         sh '''
-          # If docker not present in image, install basic docker client (Debian/Ubuntu)
           if ! command -v docker >/dev/null 2>&1; then
-            apt-get update && apt-get install -y docker.io
+            sudo apt-get update
+            sudo apt-get install -y docker.io
           fi
           docker --version
         '''
@@ -55,12 +61,11 @@ pipeline {
 
     stage('Trivy Scan') {
       steps {
+        // Run Trivy scan in a Docker container with correct volume mapping
         sh '''
-          # Pull Trivy image and run scan. Allow non-zero exit only on high/critical.
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --format table ${IMAGE}:$BUILD_NUMBER || RC=$?; \
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --format cyclonedx --output sbom.cdx ${IMAGE}:$BUILD_NUMBER || true; \
-          # fail build if high/critical found
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --exit-code 1 --severity HIGH,CRITICAL ${IMAGE}:$BUILD_NUMBER || exit 1
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --format table ${IMAGE}:$BUILD_NUMBER
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --format cyclonedx --output sbom.cdx ${IMAGE}:$BUILD_NUMBER
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --exit-code 1 --severity HIGH,CRITICAL ${IMAGE}:$BUILD_NUMBER
         '''
       }
       post {
@@ -81,15 +86,17 @@ pipeline {
 
     stage('Deploy to GKE') {
       steps {
+        // Use `get-credentials` with the region for regional clusters
         sh '''
-          gcloud container clusters get-credentials ${CLUSTER} --zone ${ZONE} --project ${PROJECT_ID}
-          # substitute image name in deployment manifest and apply
-          sed -e "s|IMAGE_PLACEHOLDER|${IMAGE}:$BUILD_NUMBER|g" k8s/deployment.yaml | kubectl apply -f -
-          # apply service (ClusterIP) - preferred for private access
+          gcloud container clusters get-credentials ${CLUSTER} --region ${REGION} --project ${PROJECT_ID}
+          
+          # Apply service first
           kubectl apply -f k8s/service-clusterip.yaml
-          # if you want ILB instead, uncomment:
-          # kubectl apply -f k8s/service-ilb.yaml
-          # wait rollout
+          
+          # Use `kubectl set image` for a more reliable update
+          kubectl set image deployment/python-app-deploy python-app-container=${IMAGE}:${BUILD_NUMBER} --record
+          
+          # wait for rollout
           kubectl -n default rollout status deployment/python-app-deploy --timeout=120s
         '''
       }
@@ -98,11 +105,24 @@ pipeline {
     stage('Smoke Test (optional)') {
       steps {
         sh '''
-          # If using ClusterIP, run a temporary port-forwarded curl to verify
-          POD=$(kubectl get pods -l app=python-app -o jsonpath="{.items[0].metadata.name}")
-          kubectl port-forward $POD 8080:5000 & FPID=$!
-          sleep 2
-          curl -sS http://localhost:8080/ || true
+          # Wait for deployment to stabilize before attempting to test
+          kubectl wait --for=condition=available deployment/python-app-deploy --timeout=180s
+          
+          POD_NAME=$(kubectl get pods -l app=python-app -o jsonpath="{.items[0].metadata.name}")
+          kubectl port-forward $POD_NAME 8080:5000 & FPID=$!
+          sleep 5
+          
+          # Retry curl to handle temporary connection issues
+          for i in {1..5}; do
+            curl_output=$(curl -sS http://localhost:8080/)
+            if [ $? -eq 0 ]; then
+              echo "Smoke test successful: $curl_output"
+              break
+            fi
+            echo "Smoke test failed on attempt $i, retrying..."
+            sleep 2
+          done
+          
           kill $FPID || true
         '''
       }
