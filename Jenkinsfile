@@ -91,20 +91,45 @@ pipeline {
     }
 
     stage('Deploy to GKE') {
-      steps {
-        sh '''
-          gcloud container clusters get-credentials ${CLUSTER} --region ${REGION} --project ${PROJECT_ID}
-          
-          kubectl apply -f k8s/service-clusterip.yaml
+  steps {
+    withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'SA_KEY_FILE')]) {
+      sh '''
+        echo "🔹 Installing kubectl and GKE Auth Plugin if missing..."
 
-          kubectl set image deployment/python-app-deploy \
-            python-app-container=${IMAGE}:$BUILD_NUMBER --record
+        if ! command -v kubectl >/dev/null 2>&1; then
+          sudo apt-get update
+          sudo apt-get install -y kubectl
+        fi
 
-          kubectl rollout status deployment/python-app-deploy --timeout=180s
-        '''
-      }
+        if ! command -v gke-gcloud-auth-plugin >/dev/null 2>&1; then
+          sudo apt-get install -y google-cloud-sdk-gke-gcloud-auth-plugin
+        fi
+
+        gcloud auth activate-service-account --key-file=$SA_KEY_FILE
+        gcloud config set project ${PROJECT_ID}
+
+        # Authenticate to GKE
+        gcloud container clusters get-credentials ${CLUSTER} \
+          --region ${REGION} \
+          --project ${PROJECT_ID}
+
+        echo "✅ kubectl & auth plugin ready"
+
+        kubectl get nodes
+
+        # Create service before deployment update
+        kubectl apply -f k8s/service-clusterip.yaml
+
+        # Update deployment to latest pushed image
+        kubectl set image deployment/python-app-deploy \
+          python-app-container=${IMAGE}:${BUILD_NUMBER} --record
+
+        kubectl rollout status deployment/python-app-deploy --timeout=180s
+      '''
     }
   }
+}
+
 
   post {
     failure {
