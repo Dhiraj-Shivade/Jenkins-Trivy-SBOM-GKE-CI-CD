@@ -12,21 +12,18 @@ pipeline {
     REPO_NAME = "python-app-repo"
     IMAGE = "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/python-app"
     CLUSTER = "cluster-ci"
-    // GKE Regional clusters use region, not zone.
-    // If you need a specific zone for node operations, you can declare it separately.
-    GCP_SA_KEY = credentials('gcp-sa-key')  // secret file
   }
 
   stages {
+
     stage('Checkout') {
       steps {
-        git branch: 'main', url: 'https://github.com/Dhiraj-Shivade/Jenkins-Trivy-SBOM-GKE-CI-CD.git'
+        checkout scm
       }
     }
 
     stage('Auth to GCP') {
       steps {
-        // Use withCredentials to handle the service account key securely
         withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'SA_KEY_FILE')]) {
           sh '''
             gcloud auth activate-service-account --key-file=$SA_KEY_FILE
@@ -37,39 +34,49 @@ pipeline {
       }
     }
 
-    stage('Install Docker CLI (if needed)') {
+    stage('Verify Docker') {
       steps {
-        // This is not needed if your slave VM has Docker pre-installed.
-        // It's not recommended for production.
-        // The `docker.io` package name is for apt-based systems.
         sh '''
-          if ! command -v docker >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y docker.io
-          fi
-          docker --version
+          command -v docker && docker --version
+          docker ps || true
         '''
       }
     }
 
-    stage('Build Image') {
+    stage('Build Docker Image') {
       steps {
-        sh 'docker build -t ${IMAGE}:$BUILD_NUMBER .'
-        sh 'docker tag ${IMAGE}:$BUILD_NUMBER ${IMAGE}:latest'
+        sh '''
+          docker build -t ${IMAGE}:$BUILD_NUMBER .
+          docker tag ${IMAGE}:$BUILD_NUMBER ${IMAGE}:latest
+        '''
       }
     }
 
-    stage('Trivy Scan') {
+    stage('Trivy SBOM Scan') {
       steps {
-        // Run Trivy scan in a Docker container with correct volume mapping
         sh '''
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --format table ${IMAGE}:$BUILD_NUMBER
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --format cyclonedx --output sbom.cdx ${IMAGE}:$BUILD_NUMBER
+          # Scan + generate vulnerability report table
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --scanners vuln \
+            --format table \
+            ${IMAGE}:$BUILD_NUMBER | tee trivy-report.txt
+
+          # Generate CycloneDX SBOM
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v $WORKSPACE:/result \
+            aquasec/trivy:latest image \
+            --format cyclonedx \
+            --scanners vuln \
+            --output /result/sbom.cyclonedx.json \
+            ${IMAGE}:$BUILD_NUMBER
         '''
       }
       post {
         always {
-          archiveArtifacts artifacts: 'sbom.cdx', fingerprint: true
+          archiveArtifacts artifacts: 'sbom.cyclonedx.json, trivy-report.txt', fingerprint: true
         }
       }
     }
@@ -85,44 +92,15 @@ pipeline {
 
     stage('Deploy to GKE') {
       steps {
-        // Use `get-credentials` with the region for regional clusters
         sh '''
           gcloud container clusters get-credentials ${CLUSTER} --region ${REGION} --project ${PROJECT_ID}
           
-          # Apply service first
           kubectl apply -f k8s/service-clusterip.yaml
-          
-          # Use `kubectl set image` for a more reliable update
-          kubectl set image deployment/python-app-deploy python-app-container=${IMAGE}:${BUILD_NUMBER} --record
-          
-          # wait for rollout
-          kubectl -n default rollout status deployment/python-app-deploy --timeout=120s
-        '''
-      }
-    }
 
-    stage('Smoke Test (optional)') {
-      steps {
-        sh '''
-          # Wait for deployment to stabilize before attempting to test
-          kubectl wait --for=condition=available deployment/python-app-deploy --timeout=180s
-          
-          POD_NAME=$(kubectl get pods -l app=python-app -o jsonpath="{.items[0].metadata.name}")
-          kubectl port-forward $POD_NAME 8080:5000 & FPID=$!
-          sleep 5
-          
-          # Retry curl to handle temporary connection issues
-          for i in {1..5}; do
-            curl_output=$(curl -sS http://localhost:8080/)
-            if [ $? -eq 0 ]; then
-              echo "Smoke test successful: $curl_output"
-              break
-            fi
-            echo "Smoke test failed on attempt $i, retrying..."
-            sleep 2
-          done
-          
-          kill $FPID || true
+          kubectl set image deployment/python-app-deploy \
+            python-app-container=${IMAGE}:$BUILD_NUMBER --record
+
+          kubectl rollout status deployment/python-app-deploy --timeout=180s
         '''
       }
     }
@@ -130,10 +108,10 @@ pipeline {
 
   post {
     failure {
-      echo "Pipeline failed. Check logs & Trivy report."
+      echo "❌ Pipeline failed! Check logs & downloaded Trivy SBOM artifacts."
     }
     success {
-      echo "Pipeline succeeded. Image: ${IMAGE}:$BUILD_NUMBER"
+      echo "✅ Deployment Successful! Image: ${IMAGE}:$BUILD_NUMBER"
     }
   }
 }
