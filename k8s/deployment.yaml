@@ -15,14 +15,8 @@ spec:
         app: python-app
     spec:
       containers:
-      - name: python-app
-        image: IMAGE_PLACEHOLDER
+      - name: python-app-container
+        image: asia-south1-docker.pkg.dev/clear-booking-470907-q6/python-app-repo/python-app:latest
         ports:
         - containerPort: 5000
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "128Mi"
-          limits:
-            cpu: "500m"
-            memory: "512Mi"
+      imagePullPolicy: Always
