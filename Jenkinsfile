@@ -27,7 +27,7 @@ pipeline {
     stage('Auth to GCP') {
       steps {
         // Use withCredentials to handle the service account key securely
-        withCredentials([file(credentialsId: 'gke-sa-key', variable: 'SA_KEY_FILE')]) {
+        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'SA_KEY_FILE')]) {
           sh '''
             gcloud auth activate-service-account --key-file=$SA_KEY_FILE
             gcloud config set project ${PROJECT_ID}
