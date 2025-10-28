@@ -14,7 +14,7 @@ pipeline {
     CLUSTER = "cluster-ci"
     // GKE Regional clusters use region, not zone.
     // If you need a specific zone for node operations, you can declare it separately.
-    GCP_SA_KEY = credentials('gke-sa-key')  // secret file
+    GCP_SA_KEY = credentials('gcp-sa-key')  // secret file
   }
 
   stages {
