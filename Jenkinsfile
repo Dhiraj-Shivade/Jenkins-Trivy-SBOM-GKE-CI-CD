@@ -27,14 +27,14 @@ pipeline {
         stage('Trivy Scan') {
             steps {
                 sh """
-                trivy image --exit-code 0 --format table ${IMAGE_NAME} > trivy-report.txt
+                trivy image --exit-code 0 --format table ${IMAGE_NAME} > trivy-report.json
                 trivy image --exit-code 1 ${IMAGE_NAME} || true
                 trivy image --scanners vuln,secret --format cyclonedx --output sbom.json ${IMAGE_NAME}
                 """
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'trivy-report.txt, sbom.json', fingerprint: true
+                    archiveArtifacts artifacts: 'trivy-report.json, sbom.json', fingerprint: true
                 }
             }
         }
