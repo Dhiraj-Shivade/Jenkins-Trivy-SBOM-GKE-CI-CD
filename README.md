@@ -24,10 +24,10 @@ Your deployed app is only accessible from:
 
 ```mermaid
 flowchart LR
-A[Local System 🧑‍💻] -- SSH Tunnel 9090 --> B[Jenkins Master VM 🟦]
-B -- kubectl deploy --> C[GKE Private Cluster 🟩]
-C --> D[Python App Pod + ClusterIP SVC 🔐]
-B -->|Trivy Scan| E[Artifact + SBOM 📄]
+A[Local System 🧑‍💻] -- SSH Tunnel 9090 -->      B[Jenkins Master VM 🟦]
+B -- kubectl deploy -->     C[GKE Private Cluster 🟩]
+C -->     D[Python App Pod + ClusterIP SVC 🔐]
+D -->|Trivy Scan|      E[Artifact + SBOM 📄]
 
 📦 Tech Stack
 Component	Tech
@@ -133,65 +133,6 @@ git clone https://github.com/Dhiraj-Shivade/Jenkins-Trivy-SBOM-GKE-CI-CD.git
 cd Jenkins-Trivy-SBOM-GKE-CI-CD
 
 
-
-<img width="1366" height="768" alt="Screenshot (8)" src="https://github.com/user-attachments/assets/3ae034ff-423f-4a13-9a5e-316b6be107c7" />
-
-
-<img width="1366" height="768" alt="Screenshot (9)" src="https://github.com/user-attachments/assets/8e6c7533-40c5-4886-a8c7-cc8000bbeee0" />
-
-
-<img width="1366" height="768" alt="Screenshot (10)" src="https://github.com/user-attachments/assets/719b7522-5d0f-463e-91c3-d0f3c9471214" />
-
-
-<img width="1366" height="768" alt="Screenshot (11)" src="https://github.com/user-attachments/assets/f43c0e00-931b-4317-90b0-21e782c7d233" />
-
-
-<img width="1366" height="768" alt="Screenshot (12)" src="https://github.com/user-attachments/assets/f54f415d-e4be-4633-91da-6327c21ecef0" />
-
-
-<img width="1366" height="768" alt="Screenshot (13)" src="https://github.com/user-attachments/assets/6f17bc18-b875-44a2-8e7a-cb4e0c4112cb" />
-
-
-<img width="1366" height="768" alt="Screenshot (13)" src="https://github.com/user-attachments/assets/c1a41e65-ba7e-4853-9b69-8b3de65ed303" />
-
-
-<img width="1366" height="768" alt="Screenshot (15)" src="https://github.com/user-attachments/assets/223d13d0-f641-44f1-963f-1653abd6de7c" />
-
-
-<img width="1366" height="768" alt="Screenshot (16)" src="https://github.com/user-attachments/assets/751340e3-74c1-432a-aec0-e3b6abf110fc" />
-
-
-<img width="1366" height="768" alt="Screenshot (17)" src="https://github.com/user-attachments/assets/d9f4ee71-97a4-4fb9-8489-bf5cd749b2a6" />
-
-
-<img width="1366" height="768" alt="Screenshot (18)" src="https://github.com/user-attachments/assets/8709a1ca-588f-4b7a-b20f-528e3173a82c" />
-
-
-<img width="1366" height="768" alt="Screenshot (19)" src="https://github.com/user-attachments/assets/97b0c462-1a51-46b3-b79d-1e14056f7fb9" />
-
-
-<img width="1366" height="768" alt="Screenshot (20)" src="https://github.com/user-attachments/assets/d5b31b8a-6186-4f23-99aa-5f24e3d79ca5" />
-
-
-<img width="1366" height="768" alt="Screenshot (21)" src="https://github.com/user-attachments/assets/1341a47b-9bfc-44ea-8b6f-e6132e5298cb" />
-
-
-<img width="1366" height="768" alt="Screenshot (22)" src="https://github.com/user-attachments/assets/3da71cc3-2c38-49e8-a908-080c798e6f73" />
-
-
-<img width="1366" height="768" alt="Screenshot (23)" src="https://github.com/user-attachments/assets/4f01cba9-ffa7-4eb9-8d63-1b76fa8cc8c1" />
-
-
-<img width="1366" height="768" alt="Screenshot (24)" src="https://github.com/user-attachments/assets/6ec6494b-f072-49e7-892d-a96ef9cbc747" />
-
-
-<img width="1366" height="768" alt="Screenshot (25)" src="https://github.com/user-attachments/assets/83012b45-2634-4124-b9dd-9289d9b8fb08" />
-
-
-<img width="1366" height="768" alt="Screenshot (26)" src="https://github.com/user-attachments/assets/83d51662-8e7d-43ea-9e1a-3cd4d9d57d81" />
-
-
-<img width="1366" height="768" alt="Screenshot (27)" src="https://github.com/user-attachments/assets/ba0745b1-3ccf-4efe-8674-248f4f98b6e9" />
 
 
 
