@@ -1,4 +1,4 @@
-<img width="1366" height="768" alt="Screenshot (9)" src="https://github.com/user-attachments/assets/5a33dd30-88e3-4d7e-b9dc-9319ddccd6fe" /># 🔐 Jenkins + Trivy + SBOM + Private GKE CI/CD Pipeline  
+# 🔐 Jenkins + Trivy + SBOM + Private GKE CI/CD Pipeline  
 _A secure modern DevSecOps pipeline built by Dhiraj_
 
 ### ✅ What this Project Does
