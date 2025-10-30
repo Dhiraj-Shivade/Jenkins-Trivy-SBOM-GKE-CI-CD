@@ -30,13 +30,14 @@ B(Jenkins-Master-VM)
 C(GKE-Private-Cluster)
 D(Python-App-Pod)
 E(Container-Registry)
-F(Trivy-SBOM)
+F(Trivy-and-SBOM)
 
 A -->|SSH-Tunnel-9090| B
 B -->|Deploy-via-kubectl| C
 C --> D
 B -->|Push-Image| E
-E -->|Scan| F
+E --> F
+
 
 
 📦 Tech Stack
