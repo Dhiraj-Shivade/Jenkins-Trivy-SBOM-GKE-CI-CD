@@ -24,10 +24,20 @@ Your deployed app is only accessible from:
 
 ```mermaid
 flowchart LR
-A[Local System 🧑‍💻] -- SSH Tunnel 9090 -->      B[Jenkins Master VM 🟦]
-B -- kubectl deploy -->     C[GKE Private Cluster 🟩]
-C -->     D[Python App Pod + ClusterIP SVC 🔐]
-D -->|Trivy Scan|      E[Artifact + SBOM 📄]
+
+A(Developer-Local-System)
+B(Jenkins-Master-VM)
+C(GKE-Private-Cluster)
+D(Python-App-Pod)
+E(Container-Registry)
+F(Trivy-SBOM)
+
+A -->|SSH-Tunnel-9090| B
+B -->|Deploy-via-kubectl| C
+C --> D
+B -->|Push-Image| E
+E -->|Scan| F
+
 
 📦 Tech Stack
 Component	Tech
